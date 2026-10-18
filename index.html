@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Интерактивный глаз</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  
+  body {
+    background: #050a10;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    overflow: hidden;
+  }
+
+  .scene {
+    position: relative;
+    width: 100%;
+    max-width: 450px;
+    aspect-ratio: 4 / 5;
+    background: #050a10;
+    overflow: hidden;
+  }
+
+  .bg-video {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+  }
+
+  .center-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100px;
+    height: 100px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    z-index: 10;
+    animation: centerPulse 3s ease-in-out infinite;
+  }
+
+  @keyframes centerPulse {
+    0%, 100% { 
+      transform: translate(-50%, -50%) scale(1);
+      background: rgba(255, 255, 255, 0.02);
+      border-color: rgba(255, 255, 255, 0.06);
+    }
+    50% { 
+      transform: translate(-50%, -50%) scale(1.08);
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+  }
+
+  .hotspot {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .hotspot.visible { opacity: 1; }
+
+  .hotspot::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 6px; height: 6px;
+    background: rgba(255, 255, 255, 0.35);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    animation: dotPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes dotPulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+    50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.2; }
+  }
+
+  .spot-cornea  { top: 18%; left: 50%; }
+  .spot-iris    { top: 50%; left: 22%; }
+  .spot-retina  { top: 50%; left: 78%; }
+  .spot-lens    { top: 82%; left: 50%; }
+
+  .popup {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 220px;
+    aspect-ratio: 16 / 9;
+    background: rgba(10, 15, 20, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    overflow: hidden;
+    z-index: 20;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(0.85);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(12px);
+  }
+
+  .popup.active {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .popup video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .close-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 50%;
+    color: #fff;
+    font-size: 14px;
+    line-height: 22px;
+    text-align: center;
+    cursor: pointer;
+    z-index: 21;
+    transition: background 0.2s;
+  }
+
+  .close-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+  .sound-btn {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 50%;
+    color: #fff;
+    font-size: 12px;
+    line-height: 22px;
+    text-align: center;
+    cursor: pointer;
+    z-index: 21;
+    transition: background 0.2s;
+  }
+
+  .sound-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="scene" id="scene">
+
+  <video class="bg-video" id="idleVideo" autoplay loop muted playsinline>
+    <source src="eye-idle.mp4" type="video/mp4">
+  </video>
+
+  <div class="center-dot" id="centerDot"></div>
+
+  <!-- Видео разлета СО ЗВУКОМ (убрали muted) -->
+  <video class="bg-video hidden" id="explodeVideo" playsinline>
+    <source src="eye-explode.mp4" type="video/mp4">
+  </video>
+
+  <div class="hotspot spot-cornea" data-target="cornea"></div>
+  <div class="hotspot spot-iris"    data-target="iris"></div>
+  <div class="hotspot spot-retina"  data-target="retina"></div>
+  <div class="hotspot spot-lens"    data-target="lens"></div>
+
+  <div class="popup" id="popup">
+    <div class="close-btn" id="closeBtn">✕</div>
+    <div class="sound-btn" id="soundBtn">🔊</div>
+    <video id="popupVideo" loop playsinline preload="auto"></video>
+  </div>
+
+</div>
+
+<script>
+  const videoMap = {
+    cornea: 'video-cornea.mp4',
+    iris:   'video-iris.mp4',
+    retina: 'video-retina.mp4',
+    lens:   'video-lens.mp4'
+  };
+
+  const centerDot    = document.getElementById('centerDot');
+  const idleVideo    = document.getElementById('idleVideo');
+  const explodeVideo = document.getElementById('explodeVideo');
+  const hotspots     = document.querySelectorAll('.hotspot');
+  const popup        = document.getElementById('popup');
+  const popupVideo   = document.getElementById('popupVideo');
+  const closeBtn     = document.getElementById('closeBtn');
+  const soundBtn     = document.getElementById('soundBtn');
+  const scene        = document.getElementById('scene');
+
+  let isMuted = false;
+
+  // Клик по центру → запуск разлета СО ЗВУКОМ
+  centerDot.addEventListener('click', () => {
+    idleVideo.classList.add('hidden');
+    idleVideo.pause();
+
+    explodeVideo.classList.remove('hidden');
+    explodeVideo.muted = false; // Включаем звук
+    explodeVideo.volume = 1.0;  // Максимальная громкость
+    explodeVideo.play().then(() => {
+      console.log('✅ Видео разлета играет со звуком');
+    }).catch(err => {
+      console.error('❌ Ошибка:', err);
+    });
+
+    centerDot.style.display = 'none';
+
+    setTimeout(() => {
+      hotspots.forEach(h => h.classList.add('visible'));
+    }, 3000);
+  });
+
+  // Клик по точке → открыть popup
+  hotspots.forEach(hotspot => {
+    hotspot.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const target = hotspot.dataset.target;
+      openPopup(target);
+    });
+  });
+
+  // Клик по крестику → закрыть
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closePopup();
+  });
+
+  // Клик по кнопке звука → вкл/выкл
+  soundBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    isMuted = !isMuted;
+    popupVideo.muted = isMuted;
+    soundBtn.textContent = isMuted ? '🔇' : '🔊';
+  });
+
+  // Клик по пустому месту → закрыть
+  scene.addEventListener('click', (e) => {
+    if (!popup.contains(e.target) && !e.target.classList.contains('hotspot')) {
+      closePopup();
+    }
+  });
+
+  function openPopup(target) {
+    popupVideo.pause();
+    popupVideo.src = '';
+
+    popupVideo.src = videoMap[target];
+    popupVideo.muted = isMuted;
+    popupVideo.load();
+
+    popup.classList.add('active');
+
+    popupVideo.addEventListener('canplay', function onCanPlay() {
+      popupVideo.removeEventListener('canplay', onCanPlay);
+      popupVideo.play().catch(err => {
+        console.log('Autoplay blocked:', err);
+        popupVideo.muted = true;
+        isMuted = true;
+        soundBtn.textContent = '🔇';
+      });
+    });
+  }
+
+  function closePopup() {
+    popup.classList.remove('active');
+    setTimeout(() => {
+      popupVideo.pause();
+      popupVideo.src = '';
+    }, 300);
+  }
+</script>
+
+</body>
+</html>

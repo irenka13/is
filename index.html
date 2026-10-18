@@ -35,6 +35,38 @@
     z-index: 1;
   }
 
+  /* Прелоадер */
+  .preloader {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    background: #050a10;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    transition: opacity 0.5s ease;
+  }
+
+  .preloader.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .loader {
+    width: 50px;
+    height: 50px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-top-color: rgba(100, 150, 255, 0.8);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
   .center-dot {
     position: absolute;
     top: 50%;
@@ -179,14 +211,20 @@
 
 <div class="scene" id="scene">
 
-  <video class="bg-video" id="idleVideo" autoplay loop muted playsinline>
+  <!-- Прелоадер -->
+  <div class="preloader" id="preloader">
+    <div class="loader"></div>
+  </div>
+
+  <!-- Первое видео: живой глаз -->
+  <video class="bg-video" id="idleVideo" autoplay loop muted playsinline preload="auto">
     <source src="eye-idle.mp4" type="video/mp4">
   </video>
 
   <div class="center-dot" id="centerDot"></div>
 
-  <!-- Видео разлета СО ЗВУКОМ (убрали muted) -->
-  <video class="bg-video hidden" id="explodeVideo" playsinline>
+  <!-- Второе видео: разлет -->
+  <video class="bg-video hidden" id="explodeVideo" muted playsinline preload="auto">
     <source src="eye-explode.mp4" type="video/mp4">
   </video>
 
@@ -196,7 +234,7 @@
   <div class="hotspot spot-lens"    data-target="lens"></div>
 
   <div class="popup" id="popup">
-    <div class="close-btn" id="closeBtn">✕</div>
+    <div class="close-btn" id="closeBtn"></div>
     <div class="sound-btn" id="soundBtn">🔊</div>
     <video id="popupVideo" loop playsinline preload="auto"></video>
   </div>
@@ -220,21 +258,37 @@
   const closeBtn     = document.getElementById('closeBtn');
   const soundBtn     = document.getElementById('soundBtn');
   const scene        = document.getElementById('scene');
+  const preloader    = document.getElementById('preloader');
 
   let isMuted = false;
 
-  // Клик по центру → запуск разлета СО ЗВУКОМ
+  // Ждем загрузки первого видео
+  idleVideo.addEventListener('canplaythrough', () => {
+    preloader.classList.add('hidden');
+    console.log('✅ Первое видео загружено');
+  });
+
+  idleVideo.addEventListener('error', (e) => {
+    console.error('❌ Ошибка загрузки первого видео:', e);
+    preloader.classList.add('hidden');
+  });
+
+  // Принудительный запуск первого видео
+  window.addEventListener('load', () => {
+    idleVideo.play().catch(err => {
+      console.log('Автоплей заблокирован:', err);
+      preloader.classList.add('hidden');
+    });
+  });
+
+  // Клик по центру → разлет
   centerDot.addEventListener('click', () => {
     idleVideo.classList.add('hidden');
     idleVideo.pause();
 
     explodeVideo.classList.remove('hidden');
-    explodeVideo.muted = false; // Включаем звук
-    explodeVideo.volume = 1.0;  // Максимальная громкость
-    explodeVideo.play().then(() => {
-      console.log('✅ Видео разлета играет со звуком');
-    }).catch(err => {
-      console.error('❌ Ошибка:', err);
+    explodeVideo.play().catch(err => {
+      console.error('Ошибка запуска видео разлета:', err);
     });
 
     centerDot.style.display = 'none';

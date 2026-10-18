@@ -26,18 +26,25 @@
     overflow: hidden;
   }
 
-  .bg-video {
+  /* Картинка-заглушка (показывается пока видео грузится или если не грузится) */
+  .poster-img {
     position: absolute;
     top: 0; left: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
     z-index: 1;
-    /* Убираем все контролы */
-    -webkit-appearance: none;
   }
 
-  /* Прелоадер */
+  .bg-video {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 2;
+  }
+
   .preloader {
     position: absolute;
     top: 0; left: 0;
@@ -218,28 +225,30 @@
     <div class="loader"></div>
   </div>
 
-  <!-- Первое видео: живой глаз (ОБЯЗАТЕЛЬНО muted для iOS) -->
-  <video class="bg-video" id="idleVideo" loop muted playsinline webkit-playsinline preload="auto">
+  <!-- Картинка-заглушка (видна всегда, пока видео не загрузилось) -->
+  <img class="poster-img" id="posterImg" src="poster.jpg" alt="Eye">
+
+  <!-- Первое видео -->
+  <video class="bg-video hidden" id="idleVideo" loop muted playsinline webkit-playsinline preload="auto">
     <source src="eye-idle.mp4" type="video/mp4">
   </video>
 
-  <div class="center-dot" id="centerDot"></div>
+  <div class="center-dot hidden" id="centerDot"></div>
 
-  <!-- Второе видео: разлет (ОБЯЗАТЕЛЬНО muted для iOS) -->
+  <!-- Второе видео -->
   <video class="bg-video hidden" id="explodeVideo" muted playsinline webkit-playsinline preload="auto">
     <source src="eye-explode.mp4" type="video/mp4">
   </video>
 
-  <div class="hotspot spot-cornea" data-target="cornea"></div>
-  <div class="hotspot spot-iris"    data-target="iris"></div>
-  <div class="hotspot spot-retina"  data-target="retina"></div>
-  <div class="hotspot spot-lens"    data-target="lens"></div>
+  <div class="hotspot spot-cornea hidden" data-target="cornea"></div>
+  <div class="hotspot spot-iris hidden" data-target="iris"></div>
+  <div class="hotspot spot-retina hidden" data-target="retina"></div>
+  <div class="hotspot spot-lens hidden" data-target="lens"></div>
 
   <div class="popup" id="popup">
-    <div class="close-btn" id="closeBtn"></div>
+    <div class="close-btn" id="closeBtn">✕</div>
     <div class="sound-btn" id="soundBtn">🔊</div>
-    <video id="popupVideo" loop playsinline webkit-playsinline preload="auto">
-    </video>
+    <video id="popupVideo" loop playsinline webkit-playsinline preload="auto"></video>
   </div>
 
 </div>
@@ -255,6 +264,7 @@
   const centerDot    = document.getElementById('centerDot');
   const idleVideo    = document.getElementById('idleVideo');
   const explodeVideo = document.getElementById('explodeVideo');
+  const posterImg    = document.getElementById('posterImg');
   const hotspots     = document.querySelectorAll('.hotspot');
   const popup        = document.getElementById('popup');
   const popupVideo   = document.getElementById('popupVideo');
@@ -264,73 +274,66 @@
   const preloader    = document.getElementById('preloader');
 
   let isMuted = false;
-  let idleVideoStarted = false;
+  let idleReady = false;
 
-  // Функция принудительного запуска видео для iOS
-  function forcePlayVideo(video, videoName) {
-    video.play().then(() => {
-      console.log('✅ Видео ' + videoName + ' играет');
-      preloader.classList.add('hidden');
-    }).catch(err => {
-      console.log('️ Автоплей заблокирован для ' + videoName + ':', err);
-      // Пробуем еще раз через 100мс
-      setTimeout(() => {
-        video.play().catch(e => {
-          console.error('❌ Не удалось запустить ' + videoName, e);
-          preloader.classList.add('hidden');
-        });
-      }, 100);
-    });
-  }
-
-  // Загружаем первое видео
-  window.addEventListener('load', () => {
-    console.log('📱 Страница загружена, пытаемся запустить видео...');
-    
-    // Убеждаемся, что видео точно muted
-    idleVideo.muted = true;
-    idleVideo.playsInline = true;
-    
-    forcePlayVideo(idleVideo, 'idle');
-    
-    // Если через 2 секунды видео всё еще не играет — скрываем прелоадер
-    setTimeout(() => {
-      if (idleVideo.paused) {
-        console.log(' Таймаут, принудительно скрываем прелоадер');
-        preloader.classList.add('hidden');
-      }
-    }, 2000);
+  // Ждем загрузки картинки-заглушки
+  posterImg.addEventListener('load', () => {
+    console.log('✅ Картинка загружена');
+    preloader.classList.add('hidden');
   });
 
-  // Когда видео готово к воспроизведению
+  // Если картинка не загрузилась — все равно убираем прелоадер
+  posterImg.addEventListener('error', () => {
+    console.log('⚠️ Картинка не загрузилась');
+    preloader.classList.add('hidden');
+  });
+
+  // Пытаемся загрузить первое видео
   idleVideo.addEventListener('canplaythrough', () => {
-    console.log('✅ Первое видео готово к воспроизведению');
-    if (!idleVideoStarted) {
-      forcePlayVideo(idleVideo, 'idle');
-    }
+    console.log('✅ Первое видео готово');
+    idleReady = true;
+    idleVideo.classList.remove('hidden');
+    centerDot.classList.remove('hidden');
+    posterImg.classList.add('hidden'); // Прячем картинку, показываем видео
+    idleVideo.play().catch(e => console.log('Play error:', e));
   });
 
-  idleVideo.addEventListener('play', () => {
-    idleVideoStarted = true;
-    console.log('▶️ Первое видео начало играть');
+  idleVideo.addEventListener('error', (e) => {
+    console.log('❌ Видео не загрузилось, оставляем картинку');
+    preloader.classList.add('hidden');
+    centerDot.classList.remove('hidden'); // Показываем точку даже на картинке
+  });
+
+  // Принудительный запуск
+  window.addEventListener('load', () => {
+    idleVideo.load();
+    // Таймаут: если через 3 сек видео не готово — оставляем картинку
+    setTimeout(() => {
+      if (!idleReady) {
+        console.log(' Таймаут, показываем картинку с точкой');
+        preloader.classList.add('hidden');
+        centerDot.classList.remove('hidden');
+      }
+    }, 3000);
   });
 
   // Клик по центру → разлет
   centerDot.addEventListener('click', () => {
-    console.log(' Клик по центру');
+    console.log('Клик по центру');
     
+    // Прячем картинку и первое видео
+    posterImg.classList.add('hidden');
     idleVideo.classList.add('hidden');
     idleVideo.pause();
+    centerDot.classList.add('hidden');
 
+    // Показываем второе видео
     explodeVideo.classList.remove('hidden');
-    explodeVideo.muted = true; // ОСТАВЛЯЕМ muted для iOS!
-    forcePlayVideo(explodeVideo, 'explode');
-
-    centerDot.style.display = 'none';
+    explodeVideo.play().catch(e => console.log('Explode play error:', e));
 
     setTimeout(() => {
-      hotspots.forEach(h => h.classList.add('visible'));
-      console.log('✨ Показываем точки');
+      hotspots.forEach(h => h.classList.remove('hidden'));
+      console.log('✨ Точки показаны');
     }, 3000);
   });
 
@@ -343,13 +346,11 @@
     });
   });
 
-  // Клик по крестику → закрыть
   closeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     closePopup();
   });
 
-  // Клик по кнопке звука → вкл/выкл
   soundBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     isMuted = !isMuted;
@@ -357,7 +358,6 @@
     soundBtn.textContent = isMuted ? '🔇' : '🔊';
   });
 
-  // Клик по пустому месту → закрыть
   scene.addEventListener('click', (e) => {
     if (!popup.contains(e.target) && !e.target.classList.contains('hotspot')) {
       closePopup();
@@ -367,17 +367,14 @@
   function openPopup(target) {
     popupVideo.pause();
     popupVideo.src = '';
-
     popupVideo.src = videoMap[target];
     popupVideo.muted = isMuted;
     popupVideo.load();
-
     popup.classList.add('active');
 
     popupVideo.addEventListener('canplay', function onCanPlay() {
       popupVideo.removeEventListener('canplay', onCanPlay);
       popupVideo.play().catch(err => {
-        console.log('Autoplay blocked:', err);
         popupVideo.muted = true;
         isMuted = true;
         soundBtn.textContent = '🔇';

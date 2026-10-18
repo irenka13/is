@@ -33,6 +33,8 @@
     height: 100%;
     object-fit: cover;
     z-index: 1;
+    /* Убираем все контролы */
+    -webkit-appearance: none;
   }
 
   /* Прелоадер */
@@ -216,15 +218,15 @@
     <div class="loader"></div>
   </div>
 
-  <!-- Первое видео: живой глаз -->
-  <video class="bg-video" id="idleVideo" autoplay loop muted playsinline preload="auto">
+  <!-- Первое видео: живой глаз (ОБЯЗАТЕЛЬНО muted для iOS) -->
+  <video class="bg-video" id="idleVideo" loop muted playsinline webkit-playsinline preload="auto">
     <source src="eye-idle.mp4" type="video/mp4">
   </video>
 
   <div class="center-dot" id="centerDot"></div>
 
-  <!-- Второе видео: разлет -->
-  <video class="bg-video hidden" id="explodeVideo" muted playsinline preload="auto">
+  <!-- Второе видео: разлет (ОБЯЗАТЕЛЬНО muted для iOS) -->
+  <video class="bg-video hidden" id="explodeVideo" muted playsinline webkit-playsinline preload="auto">
     <source src="eye-explode.mp4" type="video/mp4">
   </video>
 
@@ -236,7 +238,8 @@
   <div class="popup" id="popup">
     <div class="close-btn" id="closeBtn"></div>
     <div class="sound-btn" id="soundBtn">🔊</div>
-    <video id="popupVideo" loop playsinline preload="auto"></video>
+    <video id="popupVideo" loop playsinline webkit-playsinline preload="auto">
+    </video>
   </div>
 
 </div>
@@ -261,40 +264,73 @@
   const preloader    = document.getElementById('preloader');
 
   let isMuted = false;
+  let idleVideoStarted = false;
 
-  // Ждем загрузки первого видео
-  idleVideo.addEventListener('canplaythrough', () => {
-    preloader.classList.add('hidden');
-    console.log('✅ Первое видео загружено');
-  });
-
-  idleVideo.addEventListener('error', (e) => {
-    console.error('❌ Ошибка загрузки первого видео:', e);
-    preloader.classList.add('hidden');
-  });
-
-  // Принудительный запуск первого видео
-  window.addEventListener('load', () => {
-    idleVideo.play().catch(err => {
-      console.log('Автоплей заблокирован:', err);
+  // Функция принудительного запуска видео для iOS
+  function forcePlayVideo(video, videoName) {
+    video.play().then(() => {
+      console.log('✅ Видео ' + videoName + ' играет');
       preloader.classList.add('hidden');
+    }).catch(err => {
+      console.log('️ Автоплей заблокирован для ' + videoName + ':', err);
+      // Пробуем еще раз через 100мс
+      setTimeout(() => {
+        video.play().catch(e => {
+          console.error('❌ Не удалось запустить ' + videoName, e);
+          preloader.classList.add('hidden');
+        });
+      }, 100);
     });
+  }
+
+  // Загружаем первое видео
+  window.addEventListener('load', () => {
+    console.log('📱 Страница загружена, пытаемся запустить видео...');
+    
+    // Убеждаемся, что видео точно muted
+    idleVideo.muted = true;
+    idleVideo.playsInline = true;
+    
+    forcePlayVideo(idleVideo, 'idle');
+    
+    // Если через 2 секунды видео всё еще не играет — скрываем прелоадер
+    setTimeout(() => {
+      if (idleVideo.paused) {
+        console.log(' Таймаут, принудительно скрываем прелоадер');
+        preloader.classList.add('hidden');
+      }
+    }, 2000);
+  });
+
+  // Когда видео готово к воспроизведению
+  idleVideo.addEventListener('canplaythrough', () => {
+    console.log('✅ Первое видео готово к воспроизведению');
+    if (!idleVideoStarted) {
+      forcePlayVideo(idleVideo, 'idle');
+    }
+  });
+
+  idleVideo.addEventListener('play', () => {
+    idleVideoStarted = true;
+    console.log('▶️ Первое видео начало играть');
   });
 
   // Клик по центру → разлет
   centerDot.addEventListener('click', () => {
+    console.log(' Клик по центру');
+    
     idleVideo.classList.add('hidden');
     idleVideo.pause();
 
     explodeVideo.classList.remove('hidden');
-    explodeVideo.play().catch(err => {
-      console.error('Ошибка запуска видео разлета:', err);
-    });
+    explodeVideo.muted = true; // ОСТАВЛЯЕМ muted для iOS!
+    forcePlayVideo(explodeVideo, 'explode');
 
     centerDot.style.display = 'none';
 
     setTimeout(() => {
       hotspots.forEach(h => h.classList.add('visible'));
+      console.log('✨ Показываем точки');
     }, 3000);
   });
 

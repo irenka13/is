@@ -26,7 +26,6 @@
     overflow: hidden;
   }
 
-  /* Картинка-заглушка (показывается пока видео грузится или если не грузится) */
   .poster-img {
     position: absolute;
     top: 0; left: 0;
@@ -45,6 +44,7 @@
     z-index: 2;
   }
 
+  /* === КРУТОЙ ПРЕЛОАДЕР === */
   .preloader {
     position: absolute;
     top: 0; left: 0;
@@ -52,28 +52,114 @@
     height: 100%;
     background: #050a10;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     z-index: 100;
-    transition: opacity 0.5s ease;
+    transition: opacity 0.8s ease, visibility 0.8s ease;
   }
 
-  .preloader.hidden {
+  .preloader.fade-out {
     opacity: 0;
+    visibility: hidden;
     pointer-events: none;
   }
 
-  .loader {
-    width: 50px;
-    height: 50px;
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    border-top-color: rgba(100, 150, 255, 0.8);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
+  .eye-loader {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
 
-  @keyframes spin {
+  .ring-outer {
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    border: 1px solid rgba(100, 180, 255, 0.15);
+    border-top-color: rgba(100, 180, 255, 0.8);
+    border-radius: 50%;
+    animation: rotateCW 3s linear infinite;
+    box-shadow: 0 0 20px rgba(100, 180, 255, 0.2);
+  }
+
+  .ring-middle {
+    position: absolute;
+    width: 85px;
+    height: 85px;
+    border: 1px solid rgba(100, 180, 255, 0.1);
+    border-bottom-color: rgba(150, 220, 255, 0.7);
+    border-radius: 50%;
+    animation: rotateCCW 2s linear infinite;
+  }
+
+  .ring-inner {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    border: 1px solid rgba(100, 180, 255, 0.2);
+    border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .pupil {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: radial-gradient(circle, rgba(180, 220, 255, 0.9) 0%, rgba(100, 180, 255, 0.4) 60%, transparent 100%);
+    border-radius: 50%;
+    animation: pupilPulse 1.5s ease-in-out infinite;
+    box-shadow: 0 0 15px rgba(100, 180, 255, 0.6);
+  }
+
+  .scan-line {
+    position: absolute;
+    width: 120px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(100, 180, 255, 0.8) 50%, transparent 100%);
+    animation: scan 2s ease-in-out infinite;
+    box-shadow: 0 0 8px rgba(100, 180, 255, 0.5);
+  }
+
+  .loading-text {
+    margin-top: 30px;
+    color: rgba(180, 220, 255, 0.6);
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    font-weight: 300;
+    animation: fadeInOut 2s ease-in-out infinite;
+  }
+
+  @keyframes rotateCW {
     to { transform: rotate(360deg); }
+  }
+
+  @keyframes rotateCCW {
+    to { transform: rotate(-360deg); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.15); opacity: 1; }
+  }
+
+  @keyframes pupilPulse {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.3); opacity: 1; }
+  }
+
+  @keyframes scan {
+    0% { transform: translateY(-60px); opacity: 0; }
+    50% { opacity: 1; }
+    100% { transform: translateY(60px); opacity: 0; }
+  }
+
+  @keyframes fadeInOut {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.8; }
   }
 
   .center-dot {
@@ -188,10 +274,7 @@
     text-align: center;
     cursor: pointer;
     z-index: 21;
-    transition: background 0.2s;
   }
-
-  .close-btn:hover { background: rgba(255, 255, 255, 0.2); }
 
   .sound-btn {
     position: absolute;
@@ -208,10 +291,7 @@
     text-align: center;
     cursor: pointer;
     z-index: 21;
-    transition: background 0.2s;
   }
-
-  .sound-btn:hover { background: rgba(255, 255, 255, 0.2); }
 
   .hidden { display: none !important; }
 </style>
@@ -220,23 +300,30 @@
 
 <div class="scene" id="scene">
 
-  <!-- Прелоадер -->
+  <!-- ПРЕЛОАДЕР -->
   <div class="preloader" id="preloader">
-    <div class="loader"></div>
+    <div class="eye-loader">
+      <div class="ring-outer"></div>
+      <div class="ring-middle"></div>
+      <div class="ring-inner"></div>
+      <div class="pupil"></div>
+      <div class="scan-line"></div>
+    </div>
+    <div class="loading-text">Инициализация</div>
   </div>
 
-  <!-- Картинка-заглушка (видна всегда, пока видео не загрузилось) -->
+  <!-- Картинка-заглушка -->
   <img class="poster-img" id="posterImg" src="poster.jpg" alt="Eye">
 
-  <!-- Первое видео -->
+  <!-- Первое видео: живой глаз -->
   <video class="bg-video hidden" id="idleVideo" loop muted playsinline webkit-playsinline preload="auto">
     <source src="eye-idle.mp4" type="video/mp4">
   </video>
 
   <div class="center-dot hidden" id="centerDot"></div>
 
-  <!-- Второе видео -->
-  <video class="bg-video hidden" id="explodeVideo" muted playsinline webkit-playsinline preload="auto">
+  <!-- Второе видео: разлет (БЕЗ muted — со звуком!) -->
+  <video class="bg-video hidden" id="explodeVideo" playsinline webkit-playsinline preload="auto">
     <source src="eye-explode.mp4" type="video/mp4">
   </video>
 
@@ -247,7 +334,7 @@
 
   <div class="popup" id="popup">
     <div class="close-btn" id="closeBtn">✕</div>
-    <div class="sound-btn" id="soundBtn">🔊</div>
+    <div class="sound-btn" id="soundBtn"></div>
     <video id="popupVideo" loop playsinline webkit-playsinline preload="auto"></video>
   </div>
 
@@ -276,73 +363,72 @@
   let isMuted = false;
   let idleReady = false;
 
-  // Ждем загрузки картинки-заглушки
+  function hidePreloader() {
+    preloader.classList.add('fade-out');
+  }
+
   posterImg.addEventListener('load', () => {
     console.log('✅ Картинка загружена');
-    preloader.classList.add('hidden');
+    setTimeout(hidePreloader, 500);
   });
 
-  // Если картинка не загрузилась — все равно убираем прелоадер
   posterImg.addEventListener('error', () => {
     console.log('⚠️ Картинка не загрузилась');
-    preloader.classList.add('hidden');
+    setTimeout(hidePreloader, 500);
   });
 
-  // Пытаемся загрузить первое видео
   idleVideo.addEventListener('canplaythrough', () => {
     console.log('✅ Первое видео готово');
     idleReady = true;
     idleVideo.classList.remove('hidden');
     centerDot.classList.remove('hidden');
-    posterImg.classList.add('hidden'); // Прячем картинку, показываем видео
+    posterImg.classList.add('hidden');
+    hidePreloader();
     idleVideo.play().catch(e => console.log('Play error:', e));
   });
 
-  idleVideo.addEventListener('error', (e) => {
-    console.log('❌ Видео не загрузилось, оставляем картинку');
-    preloader.classList.add('hidden');
-    centerDot.classList.remove('hidden'); // Показываем точку даже на картинке
+  idleVideo.addEventListener('error', () => {
+    console.log('❌ Видео не загрузилось');
+    centerDot.classList.remove('hidden');
+    hidePreloader();
   });
 
-  // Принудительный запуск
   window.addEventListener('load', () => {
     idleVideo.load();
-    // Таймаут: если через 3 сек видео не готово — оставляем картинку
     setTimeout(() => {
       if (!idleReady) {
-        console.log(' Таймаут, показываем картинку с точкой');
-        preloader.classList.add('hidden');
+        console.log('⏱️ Таймаут');
         centerDot.classList.remove('hidden');
+        hidePreloader();
       }
     }, 3000);
   });
 
-  // Клик по центру → разлет
+  // Клик по центру → разлет СО ЗВУКОМ
   centerDot.addEventListener('click', () => {
-    console.log('Клик по центру');
+    console.log('👆 Клик по центру');
     
-    // Прячем картинку и первое видео
     posterImg.classList.add('hidden');
     idleVideo.classList.add('hidden');
     idleVideo.pause();
     centerDot.classList.add('hidden');
 
-    // Показываем второе видео
     explodeVideo.classList.remove('hidden');
-    explodeVideo.play().catch(e => console.log('Explode play error:', e));
+    explodeVideo.muted = false;  // ВКЛЮЧАЕМ ЗВУК
+    explodeVideo.volume = 1.0;   // Максимальная громкость
+    explodeVideo.play()
+      .then(() => console.log('🔊 Видео разлета играет со звуком'))
+      .catch(e => console.log('❌ Ошибка запуска:', e));
 
     setTimeout(() => {
       hotspots.forEach(h => h.classList.remove('hidden'));
-      console.log('✨ Точки показаны');
     }, 3000);
   });
 
-  // Клик по точке → открыть popup
   hotspots.forEach(hotspot => {
     hotspot.addEventListener('click', (e) => {
       e.stopPropagation();
-      const target = hotspot.dataset.target;
-      openPopup(target);
+      openPopup(hotspot.dataset.target);
     });
   });
 
@@ -355,7 +441,7 @@
     e.stopPropagation();
     isMuted = !isMuted;
     popupVideo.muted = isMuted;
-    soundBtn.textContent = isMuted ? '🔇' : '🔊';
+    soundBtn.textContent = isMuted ? '' : '🔊';
   });
 
   scene.addEventListener('click', (e) => {
